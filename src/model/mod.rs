@@ -34,15 +34,15 @@ impl Reference {
 pub struct AXN {
     pub code: String,
     #[serde(rename(deserialize = "degreecode"))]
-    pub degree_code: String,
-    pub position: i32,
+    pub degree_code: char,
+    pub position: i8,
     #[serde(rename(deserialize = "parentid"))]
     pub parent_id: i32,
     pub text: String,
 }
 
 impl AXN {
-    pub fn new(code: String, degree_code: String, position: i32, parent_id: i32, text: String) -> AXN {
+    pub fn new(code: String, degree_code: char, position: i8, parent_id: i32, text: String) -> AXN {
         AXN { code, degree_code, position, parent_id, text }
     }
 }
@@ -52,7 +52,7 @@ pub struct Actor {
     #[serde(rename(deserialize = "type"))]
     pub actor_type: String,
     pub id: String,
-    pub position: i32,
+    pub position: i8,
     #[serde(rename(deserialize = "parentid"))]
     pub parent_id: i32,
     pub form: Option<String>,
@@ -67,7 +67,7 @@ pub struct Actor {
 }
 
 impl Actor {
-    pub fn new(actor_type: String, id: String, position: i32, parent_id: i32, form: Option<String>, form_qualifier: Option<String>, seq_id: Option<String>) -> Actor {
+    pub fn new(actor_type: String, id: String, position: i8, parent_id: i32, form: Option<String>, form_qualifier: Option<String>, seq_id: Option<String>) -> Actor {
         Actor { actor_type, id, position, parent_id, form, form_qualifier, seq_id, text: None, axns: Vec::new(), actors: Vec::new() }
     }
     pub fn flat(&self) -> Vec<&Actor> {
