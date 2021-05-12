@@ -1,4 +1,4 @@
-# cts-to-owl-rs
+# ctd-to-owl-rs
 
 Attempt at using Rust to speed up a project written by Jim Balhoff using Scala.  
 
