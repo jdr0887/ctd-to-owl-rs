@@ -2,19 +2,16 @@
 extern crate log;
 
 use ctd_to_owl_rs::model::*;
-use ctd_to_owl_rs::OBO;
 use horned_owl::io::owx;
 use horned_owl::model::*;
 use horned_owl::ontology;
 use horned_owl::vocab::WithIRI;
 use humantime::format_duration;
-use itertools::{all, Itertools};
+use itertools::Itertools;
 use std::collections;
-use std::collections::{HashMap, HashSet};
 use std::error;
 use std::fs;
 use std::io;
-use std::io::BufRead;
 use std::path;
 use std::time;
 use structopt::StructOpt;
@@ -61,7 +58,7 @@ fn main() -> Result<(), Box<dyn error::Error>> {
         // let graph_iri = format!("{}{}", "http://ctdbase.org/detail.go?type=relationship&ixnId=", ixn.id);
         for (taxon_idx, taxon) in ixn.taxon.iter().enumerate() {
             match process_actor(&build, ixn, &taxon_idx, taxon, &chebi_to_mesh_map, &ixn.axns, &ixn.actors) {
-                Some((actor_individual, actor_axioms)) => {
+                Some((_, actor_axioms)) => {
                     info!("using ixn: {}", ixn.id);
                     actor_axioms.into_iter().for_each(|axiom| {
                         ontology.insert(axiom);
@@ -173,7 +170,7 @@ fn process_actor(
             Some((subject_individual, subject_axioms)) => {
                 let target = &actors[1];
                 match process_actor(build, ixn, taxon_idx, taxon, chebi_to_mesh_map, &target.axns, &target.actors) {
-                    Some((target_individual, target_axioms)) => {
+                    Some((_, target_axioms)) => {
                         debug!("rxn - target.id: {:?}", target.id);
 
                         axioms.append(&mut target_axioms.clone());
@@ -282,7 +279,7 @@ fn get_local_individual_and_axioms(
     build: &Build,
     actor: &Actor,
     taxon_idx: &usize,
-    chebi_to_mesh_map: &HashMap<String, String>,
+    chebi_to_mesh_map: &collections::HashMap<String, String>,
 ) -> Result<(NamedIndividual, Vec<Axiom>), Box<dyn error::Error>> {
     let (actor_class, actor_entity, actor_text, actor_label) = match actor.actor_type.as_str() {
         "chemical" => {

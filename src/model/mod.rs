@@ -1,10 +1,5 @@
 use itertools::Itertools;
-use serde::de::{MapAccess, SeqAccess, Visitor};
-use serde::{de, Deserialize, Deserializer};
-use std::fmt;
-use std::marker::PhantomData;
-use std::str::FromStr;
-use void::Void;
+use serde::Deserialize;
 
 #[derive(Deserialize, Debug, PartialEq, Clone)]
 pub struct Taxon {

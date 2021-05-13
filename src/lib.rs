@@ -1,15 +1,12 @@
-extern crate serde;
-#[macro_use]
-extern crate serde_derive;
-#[macro_use]
-extern crate log;
 extern crate env_logger;
+extern crate log;
+extern crate serde;
+extern crate serde_derive;
 #[macro_use]
 extern crate lazy_static;
 extern crate horned_owl;
 
 use std::collections;
-use std::error;
 
 pub mod model;
 
