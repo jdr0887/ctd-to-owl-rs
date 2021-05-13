@@ -1,7 +1,5 @@
 #[macro_use]
 extern crate log;
-//extern crate quick_xml;
-extern crate serde_xml_rs;
 
 use ctd_to_owl_rs::model::*;
 use ctd_to_owl_rs::OBO;
@@ -23,7 +21,7 @@ use structopt::StructOpt;
 use xmltree::{Element, XMLNode};
 
 #[derive(StructOpt, Debug)]
-#[structopt(name = "ctd-to-owl-rs", about = "asdfasdf")]
+#[structopt(name = "ctd-to-owl-rs", about = "convert ctd xml to owx")]
 struct Options {
     #[structopt(short = "i", long = "input", long_help = "input", required = true, parse(from_os_str))]
     input: path::PathBuf,
@@ -116,7 +114,8 @@ fn process_actor(
         // cotreatment
         let mut axioms: Vec<Axiom> = Vec::new();
         actors.iter().for_each(|actor| {
-            let (actor_individual, mut atomic_actor_axioms) = get_actor_class_and_entity(build, actor, taxon_idx, chebi_to_mesh_map).expect("could not get actor class and entity");
+            let (actor_individual, mut atomic_actor_axioms) =
+                get_local_individual_and_axioms(build, actor, taxon_idx, chebi_to_mesh_map).expect("could not get actor class and entity");
             axioms.append(&mut atomic_actor_axioms);
             axioms.push(Axiom::ObjectPropertyAssertion(ObjectPropertyAssertion::new(
                 build.object_property(ctd_to_owl_rs::HAS_INPUT.clone()).into(),
@@ -137,7 +136,8 @@ fn process_actor(
         // binding
         let mut axioms: Vec<Axiom> = Vec::new();
         actors.iter().for_each(|actor| {
-            let (actor_individual, mut atomic_actor_axioms) = get_actor_class_and_entity(build, actor, taxon_idx, chebi_to_mesh_map).expect("could not get actor class and entity");
+            let (actor_individual, mut atomic_actor_axioms) =
+                get_local_individual_and_axioms(build, actor, taxon_idx, chebi_to_mesh_map).expect("could not get actor class and entity");
             axioms.append(&mut atomic_actor_axioms);
             axioms.push(Axiom::ObjectPropertyAssertion(ObjectPropertyAssertion::new(
                 build.object_property(ctd_to_owl_rs::HAS_INPUT.clone()).into(),
@@ -163,7 +163,8 @@ fn process_actor(
                 None => None,
             },
             _ => {
-                let (subject_individual, subject_axioms) = get_actor_class_and_entity(build, subject, taxon_idx, chebi_to_mesh_map).expect("could not get actor class and entity");
+                let (subject_individual, subject_axioms) =
+                    get_local_individual_and_axioms(build, subject, taxon_idx, chebi_to_mesh_map).expect("could not get actor class and entity");
                 Some((subject_individual, subject_axioms))
             }
         };
@@ -220,7 +221,8 @@ fn process_actor(
                 None => None,
             },
             _ => {
-                let (subject_individual, subject_axioms) = get_actor_class_and_entity(build, subject, taxon_idx, chebi_to_mesh_map).expect("could not get actor class and entity");
+                let (subject_individual, subject_axioms) =
+                    get_local_individual_and_axioms(build, subject, taxon_idx, chebi_to_mesh_map).expect("could not get actor class and entity");
                 Some((subject_individual, subject_axioms))
             }
         };
@@ -239,7 +241,8 @@ fn process_actor(
                 let axn = ixn.axns.iter().next().expect("could not get AXN from IXN");
 
                 let target = &actors[1];
-                let (target_individual, target_axioms) = get_actor_class_and_entity(build, &target, taxon_idx, chebi_to_mesh_map).expect("could not get actor class and entity");
+                let (target_individual, target_axioms) =
+                    get_local_individual_and_axioms(build, &target, taxon_idx, chebi_to_mesh_map).expect("could not get actor class and entity");
                 axioms.append(&mut target_axioms.clone());
                 let class_map = ctd_to_owl_rs::get_class_map();
                 codes.iter().filter(|code| class_map.contains_key(code.as_str())).enumerate().for_each(|(idx, code)| {
@@ -275,7 +278,7 @@ fn process_actor(
     None
 }
 
-fn get_actor_class_and_entity(
+fn get_local_individual_and_axioms(
     build: &Build,
     actor: &Actor,
     taxon_idx: &usize,
