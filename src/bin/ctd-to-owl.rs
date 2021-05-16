@@ -8,7 +8,7 @@ use horned_owl::ontology;
 use horned_owl::vocab::WithIRI;
 use humantime::format_duration;
 use itertools::Itertools;
-//use rayon::prelude::*;
+use rayon::prelude::*;
 use std::collections;
 use std::error;
 use std::fs;
@@ -64,14 +64,25 @@ fn main() -> Result<(), Box<dyn error::Error>> {
     let output_dir: PathBuf = options.output.clone();
     let tmp_dir: PathBuf = output_dir.clone().join("tmp");
     fs::create_dir_all(&tmp_dir)?;
-    for (idx, model_chunk) in model.chunks(52211).enumerate() {
-        let ontology = build_ontology(model_chunk.to_vec(), &chebi_to_mesh_map)?;
+    // 14370 == 109 files
+    // 52211 == 30 files
+    // 104422 == 15 files
+    model.par_chunks(14370).enumerate().for_each(|(idx, model_chunk)| {
+        let ontology = build_ontology(model_chunk.to_vec(), &chebi_to_mesh_map).unwrap();
         let output_path = &tmp_dir.join(format!("{}.owx", idx));
-        let output = fs::File::create(output_path)?;
+        let output = fs::File::create(output_path).unwrap();
         info!("writing: {:?}", output_path);
         let mut buf_writer = io::BufWriter::new(output);
-        owx::writer::write(&mut buf_writer, &ontology, Some(&prefix_mapping))?;
-    }
+        owx::writer::write(&mut buf_writer, &ontology, Some(&prefix_mapping)).unwrap();
+    });
+    // for (idx, model_chunk) in model.chunks(52211).enumerate() {
+    //     let ontology = build_ontology(model_chunk.to_vec(), &chebi_to_mesh_map)?;
+    //     let output_path = &tmp_dir.join(format!("{}.owx", idx));
+    //     let output = fs::File::create(output_path)?;
+    //     info!("writing: {:?}", output_path);
+    //     let mut buf_writer = io::BufWriter::new(output);
+    //     owx::writer::write(&mut buf_writer, &ontology, Some(&prefix_mapping))?;
+    // }
 
     info!("Duration: {}", format_duration(start.elapsed()).to_string());
     Ok(())
@@ -99,13 +110,13 @@ fn build_ontology(model: Vec<IXN>, chebi_to_mesh_map: &collections::HashMap<Stri
 
             match process_actor(&build, ixn, &taxon_idx, &taxon, &ixn_individual_iri, chebi_to_mesh_map, &ixn.axns, &ixn.actors) {
                 Some((_, actor_axioms)) => {
-                    info!("using ixn: {}", ixn.id);
+                    debug!("using ixn: {}", ixn.id);
                     actor_axioms.into_iter().for_each(|axiom| {
                         ontology.insert(axiom);
                     });
                 }
                 _ => {
-                    warn!("skipping ixn: {}", ixn.id);
+                    debug!("skipping ixn: {}", ixn.id);
                 }
             }
         }
@@ -221,7 +232,7 @@ fn process_actor(
                         )));
                     }
                     None => {
-                        warn!("failed to process actor: {:?}", target)
+                        debug!("failed to process actor: {:?}", target)
                     }
                 };
             }
@@ -301,7 +312,7 @@ fn process_actor(
         return Some((ixn_individual_iri.clone().into(), axioms));
     }
 
-    warn!("not handling ixn: {:?}", ixn.id);
+    debug!("not using ixn: {:?}", ixn.id);
     None
 }
 
@@ -317,7 +328,7 @@ fn get_local_individual_and_axioms(
             let actor_class = match chebi_mapping {
                 Some(c) => build.class(c.replace("CHEBI:", ctd_to_owl_rs::CHEBI)),
                 None => {
-                    warn!("no mapping for: {:?}", actor.id);
+                    debug!("no mapping for: {:?}", actor.id);
                     build.class(actor.id.replace("MESH:", format!("{}", ctd_to_owl_rs::MESH).as_str()))
                 }
             };
