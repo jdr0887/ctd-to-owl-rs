@@ -143,16 +143,8 @@ fn process_actor(
             let (actor_individual, mut atomic_actor_axioms) =
                 get_local_individual_and_axioms(build, actor, taxon_idx, chebi_to_mesh_map).expect("could not get actor class and entity");
             axioms.append(&mut atomic_actor_axioms);
-
-            axioms.push(Axiom::DeclareClass(DeclareClass { 0: build.class(ctd_to_owl_rs::COTREATMENT.clone()) }));
-            axioms.push(Axiom::DeclareObjectProperty(DeclareObjectProperty { 0: build.object_property(ctd_to_owl_rs::HAS_INPUT.clone()) }));
-
-            axioms.push(Axiom::ObjectPropertyAssertion(ObjectPropertyAssertion::new(
-                build.object_property(ctd_to_owl_rs::HAS_INPUT.clone()).into(),
-                ixn_individual_iri.clone().into(),
-                actor_individual.clone(),
-            )));
-            axioms.push(Axiom::ClassAssertion(ClassAssertion { ce: build.class(ctd_to_owl_rs::COTREATMENT.clone()).into(), i: ixn_individual_iri.clone().into() }));
+            axioms.append(&mut build_object_property_assertion(&build.object_property(ctd_to_owl_rs::HAS_INPUT.clone()), ixn_individual_iri, &actor_individual).unwrap());
+            axioms.append(&mut build_class_assertion(&build.class(ctd_to_owl_rs::COTREATMENT.clone()), ixn_individual_iri).unwrap());
             let mut remnant_axioms = add_remnants(build, ixn, taxon, &ixn_individual_iri).unwrap();
             axioms.append(&mut remnant_axioms);
         });
@@ -166,12 +158,8 @@ fn process_actor(
             let (actor_individual, mut atomic_actor_axioms) =
                 get_local_individual_and_axioms(build, actor, taxon_idx, chebi_to_mesh_map).expect("could not get actor class and entity");
             axioms.append(&mut atomic_actor_axioms);
-            axioms.push(Axiom::ObjectPropertyAssertion(ObjectPropertyAssertion::new(
-                build.object_property(ctd_to_owl_rs::HAS_INPUT.clone()).into(),
-                ixn_individual_iri.clone().into(),
-                actor_individual.clone(),
-            )));
-            axioms.push(Axiom::ClassAssertion(ClassAssertion { ce: build.class(ctd_to_owl_rs::BINDING.clone()).into(), i: ixn_individual_iri.clone().into() }));
+            axioms.append(&mut build_object_property_assertion(&build.object_property(ctd_to_owl_rs::HAS_INPUT.clone()), ixn_individual_iri, &actor_individual).unwrap());
+            axioms.append(&mut build_class_assertion(&build.class(ctd_to_owl_rs::BINDING.clone()), ixn_individual_iri).unwrap());
             let mut remnant_axioms = add_remnants(build, ixn, taxon, &ixn_individual_iri).unwrap();
             axioms.append(&mut remnant_axioms);
         });
@@ -264,13 +252,9 @@ fn process_actor(
                 axioms.push(Axiom::DeclareNamedIndividual(DeclareNamedIndividual { 0: subject_individual.clone() }));
                 axioms.push(Axiom::DeclareNamedIndividual(DeclareNamedIndividual { 0: subject_process.clone() }));
 
-                let process_class = build.class(ctd_to_owl_rs::PROCESS.clone());
-                axioms.push(Axiom::DeclareClass(DeclareClass { 0: process_class.clone() }));
-                axioms.push(Axiom::ClassAssertion(ClassAssertion { ce: process_class.into(), i: subject_process.clone() }));
-
-                let has_participant_op = build.object_property(ctd_to_owl_rs::HAS_PARTICIPANT.clone());
-                axioms.push(Axiom::DeclareObjectProperty(DeclareObjectProperty { 0: has_participant_op.clone() }));
-                axioms.push(Axiom::ObjectPropertyAssertion(ObjectPropertyAssertion::new(has_participant_op.clone().into(), subject_process.clone(), subject_individual.clone())));
+                axioms.append(&mut build_class_assertion(&build.class(ctd_to_owl_rs::PROCESS.clone()), &subject_process.0).unwrap());
+                axioms
+                    .append(&mut build_object_property_assertion(&build.object_property(ctd_to_owl_rs::HAS_PARTICIPANT.clone()), &subject_process.0, &subject_individual).unwrap());
 
                 axioms.append(&mut subject_axioms.clone());
                 let axn = ixn.axns.iter().next().expect("could not get AXN from IXN");
@@ -282,23 +266,21 @@ fn process_actor(
                 let class_map = ctd_to_owl_rs::get_class_map();
                 codes.iter().filter(|code| class_map.contains_key(code.as_str())).enumerate().for_each(|(idx, code)| {
                     let ixn_type = class_map.get(code).expect(format!("class not found for code: {:?}", code).as_str());
-                    let ixn_type_iri = build.iri(ixn_type);
-                    axioms.push(Axiom::DeclareClass(DeclareClass { 0: ixn_type_iri.clone().into() }));
-
+                    let ixn_type_class = build.class(ixn_type);
                     let local_ixn_iri = build.iri(format!("{}{}#{}-target-{}", ctd_to_owl_rs::CTDIXN, ixn.id, taxon_idx, idx));
+
+                    axioms.append(&mut build_class_assertion(&ixn_type_class, &local_ixn_iri).unwrap());
+
                     axioms.push(Axiom::DeclareNamedIndividual(DeclareNamedIndividual { 0: local_ixn_iri.clone().into() }));
 
-                    axioms.push(Axiom::ClassAssertion(ClassAssertion { ce: build.class(ixn_type_iri.clone()).into(), i: local_ixn_iri.clone().into() }));
-
                     axioms.push(Axiom::ObjectPropertyAssertion(ObjectPropertyAssertion::new(
-                        has_participant_op.clone().into(),
+                        build.object_property(ctd_to_owl_rs::HAS_PARTICIPANT.clone()).into(),
                         local_ixn_iri.clone().into(),
                         target_individual.clone(),
                     )));
 
                     let process_to_process_op = process_to_process(&build, &axn.degree_code);
-                    axioms.push(Axiom::DeclareObjectProperty(DeclareObjectProperty { 0: process_to_process_op.clone() }));
-                    axioms.push(Axiom::ObjectPropertyAssertion(ObjectPropertyAssertion::new(process_to_process_op.into(), subject_process.clone(), local_ixn_iri.clone().into())));
+                    axioms.append(&mut build_object_property_assertion(&process_to_process_op, &subject_process.0, &local_ixn_iri.clone().into()).unwrap());
 
                     let part_of_op = build.object_property(ctd_to_owl_rs::PART_OF.clone());
                     axioms.push(Axiom::DeclareObjectProperty(DeclareObjectProperty { 0: part_of_op.clone() }));
@@ -357,11 +339,8 @@ fn get_local_individual_and_axioms(
     let actor_individual_iri = build.iri(format!("{}{}#{}-{}", ctd_to_owl_rs::CTDIXN, actor.parent_id, taxon_idx, actor.position));
     axioms.push(Axiom::DeclareNamedIndividual(DeclareNamedIndividual { 0: actor_individual_iri.clone().into() }));
 
-    axioms.push(Axiom::DeclareClass(DeclareClass { 0: actor_class.clone() }));
-    axioms.push(Axiom::DeclareClass(DeclareClass { 0: actor_entity.clone() }));
-
     // actorInd Type actorClass,
-    axioms.push(Axiom::ClassAssertion(ClassAssertion { ce: actor_class.clone().into(), i: actor_individual_iri.clone().into() }));
+    axioms.append(&mut build_class_assertion(&actor_class, &actor_individual_iri)?);
 
     // actorClass Annotation(RDFSLabel, typeLabel),
     axioms.push(Axiom::AnnotationAssertion(AnnotationAssertion::new(
@@ -370,7 +349,7 @@ fn get_local_individual_and_axioms(
     )));
 
     // actorInd Type nodeType,
-    axioms.push(Axiom::ClassAssertion(ClassAssertion { ce: actor_entity.clone().into(), i: actor_individual_iri.clone().into() }));
+    axioms.append(&mut build_class_assertion(&actor_entity, &actor_individual_iri)?);
 
     // actorInd Annotation(RDFSLabel, label)
     axioms.push(Axiom::AnnotationAssertion(AnnotationAssertion::new(
@@ -406,8 +385,7 @@ fn add_remnants(build: &Build, ixn: &IXN, taxon: &Taxon, ixn_individual_iri: &IR
     });
     let organism_iri = build.iri(format!("{}-organism", ixn_individual_iri.to_string()));
     let taxon_iri = build.iri(format!("{}{}", ctd_to_owl_rs::NCBI_TAXON, &taxon.id));
-    axioms.push(Axiom::DeclareClass(DeclareClass { 0: taxon_iri.clone().into() }));
-    axioms.push(Axiom::ClassAssertion(ClassAssertion { ce: Class::from(taxon_iri.clone()).into(), i: organism_iri.clone().into() }));
+    axioms.append(&mut build_class_assertion(&taxon_iri.into(), &organism_iri)?);
     axioms.push(Axiom::AnnotationAssertion(AnnotationAssertion::new(
         organism_iri.clone(),
         Annotation {
@@ -430,6 +408,56 @@ fn ctd_input_to_model(ctd_input_path: &PathBuf) -> Result<Vec<IXN>, Box<dyn erro
     let data = fs::read_to_string(ctd_input_path)?;
     let ixnset_element = Element::parse(data.as_bytes())?;
     parse_input(&ixnset_element)
+}
+
+fn build_object_property_assertion(object_property: &ObjectProperty, ixn_individual_iri: &IRI, actor_individual: &NamedIndividual) -> Result<Vec<Axiom>, Box<dyn error::Error>> {
+    let mut axioms = Vec::new();
+    axioms.push(Axiom::DeclareObjectProperty(DeclareObjectProperty { 0: object_property.clone() }));
+    axioms.push(Axiom::ObjectPropertyAssertion(ObjectPropertyAssertion::new(object_property.clone().into(), ixn_individual_iri.clone().into(), actor_individual.clone())));
+    Ok(axioms)
+}
+
+fn build_class_assertion(class: &Class, ixn_individual_iri: &IRI) -> Result<Vec<Axiom>, Box<dyn error::Error>> {
+    let mut axioms = Vec::new();
+    axioms.push(Axiom::DeclareClass(DeclareClass { 0: class.clone() }));
+    axioms.push(Axiom::ClassAssertion(ClassAssertion { ce: class.clone().into(), i: ixn_individual_iri.clone().into() }));
+    Ok(axioms)
+}
+
+fn get_actor_from_element(element: &Element) -> Result<Actor, Box<dyn error::Error>> {
+    let actor_type = element.attributes.get("type").unwrap();
+    let actor_id = element.attributes.get("id").unwrap();
+    let actor_position = element.attributes.get("position").unwrap();
+    let actor_parent_id = element.attributes.get("parentid").unwrap();
+    let form = element.attributes.get("form").cloned();
+    //let form_qualifier = element.attributes.get("form_qualifier").cloned();
+    let seq_id = element.attributes.get("seqid").cloned();
+    // let actor =
+    //     Actor::new(actor_type.to_string(), actor_id.to_string(), actor_position.parse::<i32>().unwrap(), actor_parent_id.parse::<i32>().unwrap(), form, form_qualifier, seq_id);
+    let actor = Actor::new(actor_type.to_string(), actor_id.to_string(), actor_position.parse::<i8>().unwrap(), actor_parent_id.parse::<i32>().unwrap(), form, None, seq_id);
+    Ok(actor)
+}
+
+fn get_axn_from_element(element: &Element) -> Result<AXN, Box<dyn error::Error>> {
+    let axn_code = element.attributes.get("code").unwrap();
+    let axn_degreecode = element.attributes.get("degreecode").unwrap();
+    let axn_position = element.attributes.get("position").unwrap();
+    let axn_parent_id = element.attributes.get("parentid").unwrap();
+    let axn_text = element.get_text().unwrap().to_string();
+    let axn = AXN::new(axn_code.into(), axn_degreecode.chars().next().unwrap(), axn_position.parse::<i8>().unwrap(), axn_parent_id.parse::<i32>().unwrap(), axn_text);
+    Ok(axn)
+}
+
+fn process_to_process(build: &horned_owl::model::Build, degree: &char) -> horned_owl::model::ObjectProperty {
+    match degree {
+        '1' => build.object_property(ctd_to_owl_rs::CAUSALLY_UPSTREAM_OF.clone()),
+        //"0" => // has no effect? never used in CTD_chem_gene_ixns_structured.xml
+        '+' => build.object_property(ctd_to_owl_rs::CAUSALLY_UPSTREAM_OF_POSITIVE_EFFECT.clone()),
+        '-' => build.object_property(ctd_to_owl_rs::CAUSALLY_UPSTREAM_OF_NEGATIVE_EFFECT.clone()),
+        _ => {
+            panic!("invalid degree")
+        }
+    }
 }
 
 fn parse_input(ixnset_element: &Element) -> Result<Vec<IXN>, Box<dyn error::Error>> {
@@ -466,116 +494,14 @@ fn parse_input(ixnset_element: &Element) -> Result<Vec<IXN>, Box<dyn error::Erro
                                 // debug!("{:?}", ixn);
                             }
                             "actor" => {
-                                let mut actor = get_actor_from_element(ixn_child_element).unwrap();
-                                match ixn_child_element.get_text() {
-                                    Some(s) => {
-                                        actor.text = Some(s.to_string());
-                                        if ixn.id == actor.parent_id {
-                                            ixn.actors.push(actor);
-                                        }
-                                        // debug!("{:?}", ixn);
-                                    }
-                                    None => {
-                                        if ixn.id == actor.parent_id {
-                                            ixn.actors.push(actor);
-                                        }
-                                        // debug!("{:?}", ixn);
-
-                                        for a_node in ixn_child_element.children.iter() {
-                                            match a_node {
-                                                XMLNode::Element(a_element) => match a_element.name.as_str() {
-                                                    "axn" => {
-                                                        let a_created_axn = get_axn_from_element(a_element).unwrap();
-                                                        let found_actor =
-                                                            ixn.actors.iter_mut().find(|b_actor| b_actor.id == a_created_axn.parent_id.to_string()).expect("could not find actor");
-                                                        found_actor.axns.push(a_created_axn.clone());
-                                                        // debug!("{:?}", ixn);
-                                                    }
-                                                    "actor" => {
-                                                        let mut a_created_actor = get_actor_from_element(a_element).unwrap();
-                                                        let a_actor_text = a_element.get_text();
-                                                        match a_actor_text {
-                                                            Some(t) => {
-                                                                a_created_actor.text = Some(t.to_string());
-                                                                let found_actor = ixn
-                                                                    .actors
-                                                                    .iter_mut()
-                                                                    .find(|b_actor| b_actor.id == a_created_actor.parent_id.to_string())
-                                                                    .expect("could not find actor");
-                                                                found_actor.actors.push(a_created_actor.clone());
-                                                                // debug!("{:?}", ixn);
-                                                            }
-                                                            None => {
-                                                                let found_actor = ixn
-                                                                    .actors
-                                                                    .iter_mut()
-                                                                    .find(|b_actor| b_actor.id == a_created_actor.parent_id.to_string())
-                                                                    .expect("could not find actor");
-                                                                found_actor.actors.push(a_created_actor.clone());
-                                                                // debug!("{:?}", ixn);
-
-                                                                for b_node in a_element.children.iter() {
-                                                                    match b_node {
-                                                                        XMLNode::Element(b_element) => match b_element.name.as_str() {
-                                                                            "axn" => {
-                                                                                let b_created_axn = get_axn_from_element(b_element).unwrap();
-                                                                                ixn.actors.iter_mut().for_each(|a_actor| {
-                                                                                    let found_actor =
-                                                                                        a_actor.actors.iter_mut().find(|b_actor| b_actor.id == b_created_axn.parent_id.to_string());
-                                                                                    match found_actor {
-                                                                                        Some(a) => a.axns.push(b_created_axn.clone()),
-                                                                                        _ => {
-                                                                                            // debug!("actor not found for: {:?}", b_created_axn);
-                                                                                        }
-                                                                                    }
-                                                                                });
-                                                                            }
-                                                                            "actor" => {
-                                                                                let mut b_created_actor = get_actor_from_element(b_element).unwrap();
-                                                                                let b_actor_text = b_element.get_text();
-                                                                                match b_actor_text {
-                                                                                    Some(t) => {
-                                                                                        b_created_actor.text = Some(t.to_string());
-
-                                                                                        ixn.actors.iter_mut().for_each(|a_axn| {
-                                                                                            let found_actor = a_axn
-                                                                                                .actors
-                                                                                                .iter_mut()
-                                                                                                .find(|b_actor| b_actor.id == b_created_actor.parent_id.to_string());
-                                                                                            match found_actor {
-                                                                                                Some(a) => a.actors.push(b_created_actor.clone()),
-                                                                                                _ => {
-                                                                                                    // debug!("actor not found for: {:?}", b_created_actor);
-                                                                                                }
-                                                                                            }
-                                                                                        });
-                                                                                    }
-                                                                                    None => {}
-                                                                                }
-                                                                                // debug!("{:?}", ixn);
-                                                                            }
-                                                                            _ => {}
-                                                                        },
-                                                                        _ => {}
-                                                                    }
-                                                                }
-                                                            }
-                                                        }
-                                                    }
-                                                    _ => {}
-                                                },
-                                                _ => {}
-                                            }
-                                        }
-                                    }
-                                }
-                                // debug!("{:?}", ixn);
+                                parse_actor_element(&mut ixn.actors, &ixn_child_element);
                             }
                             _ => {}
                         },
                         _ => {}
                     }
                 }
+                debug!("{:?}", ixn);
                 ixns.push(ixn);
             }
             _ => {}
@@ -584,38 +510,30 @@ fn parse_input(ixnset_element: &Element) -> Result<Vec<IXN>, Box<dyn error::Erro
     Ok(ixns)
 }
 
-fn get_actor_from_element(element: &Element) -> Result<Actor, Box<dyn error::Error>> {
-    let actor_type = element.attributes.get("type").unwrap();
-    let actor_id = element.attributes.get("id").unwrap();
-    let actor_position = element.attributes.get("position").unwrap();
-    let actor_parent_id = element.attributes.get("parentid").unwrap();
-    let form = element.attributes.get("form").cloned();
-    //let form_qualifier = element.attributes.get("form_qualifier").cloned();
-    let seq_id = element.attributes.get("seqid").cloned();
-    // let actor =
-    //     Actor::new(actor_type.to_string(), actor_id.to_string(), actor_position.parse::<i32>().unwrap(), actor_parent_id.parse::<i32>().unwrap(), form, form_qualifier, seq_id);
-    let actor = Actor::new(actor_type.to_string(), actor_id.to_string(), actor_position.parse::<i8>().unwrap(), actor_parent_id.parse::<i32>().unwrap(), form, None, seq_id);
-    Ok(actor)
-}
-
-fn get_axn_from_element(element: &Element) -> Result<AXN, Box<dyn error::Error>> {
-    let axn_code = element.attributes.get("code").unwrap();
-    let axn_degreecode = element.attributes.get("degreecode").unwrap();
-    let axn_position = element.attributes.get("position").unwrap();
-    let axn_parent_id = element.attributes.get("parentid").unwrap();
-    let axn_text = element.get_text().unwrap().to_string();
-    let axn = AXN::new(axn_code.into(), axn_degreecode.chars().next().unwrap(), axn_position.parse::<i8>().unwrap(), axn_parent_id.parse::<i32>().unwrap(), axn_text);
-    Ok(axn)
-}
-
-fn process_to_process(build: &horned_owl::model::Build, degree: &char) -> horned_owl::model::ObjectProperty {
-    match degree {
-        '1' => build.object_property(ctd_to_owl_rs::CAUSALLY_UPSTREAM_OF.clone()),
-        //"0" => // has no effect? never used in CTD_chem_gene_ixns_structured.xml
-        '+' => build.object_property(ctd_to_owl_rs::CAUSALLY_UPSTREAM_OF_POSITIVE_EFFECT.clone()),
-        '-' => build.object_property(ctd_to_owl_rs::CAUSALLY_UPSTREAM_OF_NEGATIVE_EFFECT.clone()),
-        _ => {
-            panic!("invalid degree")
+fn parse_actor_element(actors: &mut Vec<Actor>, element: &Element) {
+    let mut actor = get_actor_from_element(element).unwrap();
+    match element.get_text() {
+        Some(s) => {
+            actor.text = Some(s.to_string());
+            actors.push(actor);
+        }
+        None => {
+            if !element.children.is_empty() {
+                for a_node in element.children.iter() {
+                    match a_node {
+                        XMLNode::Element(a_element) => match a_element.name.as_str() {
+                            "axn" => {
+                                let a_created_axn = get_axn_from_element(a_element).unwrap();
+                                actor.axns.push(a_created_axn.clone());
+                            }
+                            "actor" => parse_actor_element(&mut actor.actors, a_element),
+                            _ => {}
+                        },
+                        _ => {}
+                    }
+                }
+            }
+            actors.push(actor);
         }
     }
 }
