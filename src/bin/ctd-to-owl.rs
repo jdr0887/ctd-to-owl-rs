@@ -14,7 +14,6 @@ use std::error;
 use std::fs;
 use std::io;
 use std::path;
-use std::path::PathBuf;
 use std::time;
 use structopt::StructOpt;
 use xmltree::{Element, XMLNode};
@@ -61,28 +60,23 @@ fn main() -> Result<(), Box<dyn error::Error>> {
     prefix_mapping.add_prefix("NCBIGENE", ctd_to_owl_rs::NCBIGENE).unwrap();
     prefix_mapping.add_prefix("DC", ctd_to_owl_rs::DC).unwrap();
 
-    let output_dir: PathBuf = options.output.clone();
-    let tmp_dir: PathBuf = output_dir.clone().join("tmp");
-    fs::create_dir_all(&tmp_dir)?;
-    // 14370 == 109 files
-    // 52211 == 30 files
-    // 104422 == 15 files
-    model.par_chunks(14370).enumerate().for_each(|(idx, model_chunk)| {
+    let output_dir: path::PathBuf = options.output;
+    fs::create_dir_all(&output_dir)?;
+
+    model.par_chunks(10000).enumerate().for_each(|(idx, model_chunk)| {
         let ontology = build_ontology(model_chunk.to_vec(), &chebi_to_mesh_map).unwrap();
-        let output_path = &tmp_dir.join(format!("{}.owx", idx));
-        let output = fs::File::create(output_path).unwrap();
+        let output_path = output_dir.clone().join(format!("{}.owx", idx));
+        let output = fs::File::create(&output_path).unwrap();
         info!("writing: {:?}", output_path);
         let mut buf_writer = io::BufWriter::new(output);
         owx::writer::write(&mut buf_writer, &ontology, Some(&prefix_mapping)).unwrap();
     });
-    // for (idx, model_chunk) in model.chunks(52211).enumerate() {
-    //     let ontology = build_ontology(model_chunk.to_vec(), &chebi_to_mesh_map)?;
-    //     let output_path = &tmp_dir.join(format!("{}.owx", idx));
-    //     let output = fs::File::create(output_path)?;
-    //     info!("writing: {:?}", output_path);
-    //     let mut buf_writer = io::BufWriter::new(output);
-    //     owx::writer::write(&mut buf_writer, &ontology, Some(&prefix_mapping))?;
-    // }
+
+    // let ontology = build_ontology(model, &chebi_to_mesh_map).unwrap();
+    // let output = fs::File::create(&options.output).unwrap();
+    // info!("writing: {:?}", &options.output);
+    // let mut buf_writer = io::BufWriter::new(output);
+    // owx::writer::write(&mut buf_writer, &ontology, Some(&prefix_mapping)).unwrap();
 
     info!("Duration: {}", format_duration(start.elapsed()).to_string());
     Ok(())
@@ -314,20 +308,33 @@ fn get_local_individual_and_axioms(
                     build.class(actor.id.replace("MESH:", format!("{}", ctd_to_owl_rs::MESH).as_str()))
                 }
             };
-            let actor_text = actor.text.as_ref().expect("failed to get actor text");
+
+            let actor_text = match &actor.text {
+                Some(t) => t.clone(),
+                None => {
+                    warn!("text is empty - actor: {:?}", actor);
+                    String::from("")
+                }
+            };
             let label = format!("{}#{}-{}", actor_text, actor.parent_id, actor.position);
             (actor_class, build.class(ctd_to_owl_rs::CHEMICAL_ENTITY.clone()), actor_text.clone(), label)
         }
         "gene" => {
             let actor_class = build.class(actor.id.replace("GENE:", ctd_to_owl_rs::NCBIGENE));
             let (actor_text, label) = match &actor.text {
-                Some(t) => (t, format!("{}#{}-{}", t, actor.parent_id, actor.position)),
+                Some(t) => (t.clone(), format!("{}#{}-{}", t, actor.parent_id, actor.position)),
                 None => {
-                    let t = actor.seq_id.as_ref().unwrap();
-                    (t, format!("{}#{}-{}", t, actor.parent_id, actor.position))
+                    let seq_id_value = match &actor.seq_id {
+                        Some(s) => s.clone(),
+                        None => {
+                            warn!("seq_id is empty - actor: {:?}", actor);
+                            String::from("")
+                        }
+                    };
+                    (seq_id_value.clone(), format!("{}#{}-{}", seq_id_value, actor.parent_id, actor.position))
                 }
             };
-            (actor_class, build.class(ctd_to_owl_rs::GENE_ENTITY.clone()), actor_text.to_string(), label)
+            (actor_class, build.class(ctd_to_owl_rs::GENE_ENTITY.clone()), actor_text, label)
         }
         _ => {
             panic!("should never get here")
@@ -404,7 +411,7 @@ fn add_remnants(build: &Build, ixn: &IXN, taxon: &Taxon, ixn_individual_iri: &IR
     Ok(axioms)
 }
 
-fn ctd_input_to_model(ctd_input_path: &PathBuf) -> Result<Vec<IXN>, Box<dyn error::Error>> {
+fn ctd_input_to_model(ctd_input_path: &path::PathBuf) -> Result<Vec<IXN>, Box<dyn error::Error>> {
     let data = fs::read_to_string(ctd_input_path)?;
     let ixnset_element = Element::parse(data.as_bytes())?;
     parse_input(&ixnset_element)
