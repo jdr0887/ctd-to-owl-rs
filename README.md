@@ -17,7 +17,7 @@ $ cargo install --path .
 How to run and/or produce a usable OWL file:
 ```shell
 $ RUST_LOG=info ctd-to-owl -i CTD_chem_gene_ixns_structured.xml -o <output_dir> -c chebi_mesh.tsv
-$ ls <output_dir>/*.owx | parallel -j 4 "robot convert --input {} --output <output_dir>/{.}.owl"
+$ ls <output_dir>/*.owx | parallel -j 4 "robot convert --input {} --output {.}.owl"
 $ robot merge --inputs "<output_dir>/*.owl" --output output.owl
 ```
 
