@@ -6,6 +6,8 @@ The [ctd-to-owl](https://github.com/balhoff/ctd-to-owl) project runs in just und
 
 Example Build/Usage:
 ```
-ctd-to-owl-rs$ cargo build --release
-ctd-to-owl-rs$ RUST_LOG=info ./target/release/ctd-to-owl -i <some_dir>/CTD_chem_gene_ixns_structured.xml -o <some_dir> -c <some_dir>/chebi_mesh.tsv
+$ ctd-to-owl-rs$ cargo build --release
+$ ctd-to-owl-rs$ RUST_LOG=info ./target/release/ctd-to-owl -i CTD_chem_gene_ixns_structured.xml -o <output_dir> -c chebi_mesh.tsv
+$ ls <output_dir>/*.owx | parallel -j 4 "robot convert --input {} --output <output_dir>/{.}.owl"
+$ robot merge --inputs "<output_dir>/*.owl" --output output.owl
 ```
