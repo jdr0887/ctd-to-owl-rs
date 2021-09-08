@@ -63,7 +63,7 @@ fn main() -> Result<(), Box<dyn error::Error>> {
     let output_dir: path::PathBuf = options.output;
     fs::create_dir_all(&output_dir)?;
 
-    model.par_chunks(10000).enumerate().for_each(|(idx, model_chunk)| {
+    model.par_chunks(40000).enumerate().for_each(|(idx, model_chunk)| {
         let ontology = build_ontology(model_chunk.to_vec(), &chebi_to_mesh_map).unwrap();
         let output_path = output_dir.clone().join(format!("{}.owx", idx));
         let output = fs::File::create(&output_path).unwrap();
